@@ -39,11 +39,21 @@ export class NetworkAnimatorComponent implements AfterViewInit {
   private lastFrameTime = 0;
   private animationFrameId: number = 0;
 
+  // Dragging
+  private draggingNode: Node | null = null;
+  private dragOffsetX = 0;
+  private dragOffsetY = 0;
+
   ngAfterViewInit(): void {
     const canvas = this.canvasRef.nativeElement;
     this.ctx = canvas.getContext('2d')!;
     this.resizeCanvas();
     this.drawFrame();
+
+    canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
+    canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
+    canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
+    canvas.addEventListener('mouseleave', this.onMouseUp.bind(this));
   }
 
   @HostListener('window:resize')
@@ -156,7 +166,7 @@ export class NetworkAnimatorComponent implements AfterViewInit {
   }
 
   private calculateLayout(nodeIds: string[]): void {
-    if (!this.canvasRef) return;
+    if (!this.canvasRef || this.nodes.size > 0) return;
     const canvas = this.canvasRef.nativeElement;
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
@@ -292,7 +302,38 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     if (parent) {
       canvas.width = parent.clientWidth;
       canvas.height = parent.clientHeight;
-      this.calculateLayout(Array.from(this.nodes.keys()).sort());
+      this.drawFrame();
     }
+  }
+
+  private onMouseDown(event: MouseEvent): void {
+    const rect = this.canvasRef.nativeElement.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    for (const node of this.nodes.values()) {
+      const distance = Math.sqrt((mouseX - node.x) ** 2 + (mouseY - node.y) ** 2);
+      if (distance < 20) { // 20 is the node radius
+        this.draggingNode = node;
+        this.dragOffsetX = mouseX - node.x;
+        this.dragOffsetY = mouseY - node.y;
+        break;
+      }
+    }
+  }
+
+  private onMouseMove(event: MouseEvent): void {
+    if (this.draggingNode) {
+      const rect = this.canvasRef.nativeElement.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
+      this.draggingNode.x = mouseX - this.dragOffsetX;
+      this.draggingNode.y = mouseY - this.dragOffsetY;
+      this.drawFrame();
+    }
+  }
+
+  private onMouseUp(): void {
+    this.draggingNode = null;
   }
 }
