@@ -17,6 +17,8 @@ interface LinkStateEvent {
   state: 'UP' | 'DOWN';
 }
 
+const LAST_FILE_STORAGE_KEY = 'nam_last_file_content';
+
 @Component({
   selector: 'app-network-animator',
   templateUrl: './network-animator.component.html',
@@ -48,6 +50,7 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     const canvas = this.canvasRef.nativeElement;
     this.ctx = canvas.getContext('2d')!;
     this.resizeCanvas();
+    this.loadFromLocalStorage(); // Load data after the view is initialized
     this.drawFrame();
   }
 
@@ -68,13 +71,14 @@ export class NetworkAnimatorComponent implements AfterViewInit {
           this.originalNamContent = e.target?.result as string;
           if (this.originalNamContent) {
             this.parseNamData(this.originalNamContent);
+            localStorage.setItem(LAST_FILE_STORAGE_KEY, this.originalNamContent);
           } else {
             throw new Error('File content is empty or could not be read.');
           }
         } catch (error) {
           console.error(error);
           this.errorMessage = `Failed to parse the file. Please ensure it is a valid .nam file.`;
-          this.resetState(true); // Reset with error
+          this.resetState(true);
         } finally {
           this.isLoading = false;
         }
@@ -84,6 +88,26 @@ export class NetworkAnimatorComponent implements AfterViewInit {
         this.errorMessage = 'An error occurred while reading the file.';
       };
       reader.readAsText(file);
+    }
+  }
+
+  private loadFromLocalStorage(): void {
+    const savedContent = localStorage.getItem(LAST_FILE_STORAGE_KEY);
+    if (savedContent) {
+      this.isLoading = true;
+      // Use a timeout to allow the UI to update with the loader
+      setTimeout(() => {
+        try {
+          this.originalNamContent = savedContent;
+          this.parseNamData(savedContent);
+        } catch (error) {
+          console.error("Failed to load from local storage:", error);
+          this.errorMessage = "Could not restore the previous session.";
+          localStorage.removeItem(LAST_FILE_STORAGE_KEY);
+        } finally {
+          this.isLoading = false;
+        }
+      }, 10); // A small delay is enough
     }
   }
 
@@ -175,7 +199,7 @@ export class NetworkAnimatorComponent implements AfterViewInit {
 
   private calculateLayout(nodeIds: string[]): void {
     if (!this.canvasRef) return;
-    this.nodes = []; // Clear previous nodes before recalculating
+    this.nodes = [];
     const canvas = this.canvasRef.nativeElement;
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
