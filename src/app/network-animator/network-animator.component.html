@@ -1,0 +1,14 @@
+<div class="animator-container">
+  <h2>TCL Network Visualizer</h2>
+
+  <div class="upload-section">
+    <label for="file-upload" class="custom-file-upload">
+      Upload .tcl File
+    </label>
+    <input id="file-upload" type="file" accept=".tcl" (change)="onFileSelected($event)" />
+  </div>
+
+  <div class="canvas-wrapper">
+    <canvas #networkCanvas></canvas>
+  </div>
+</div>
