@@ -42,6 +42,10 @@ input[type="file"] {
   border-radius: 4px;
   font-weight: bold;
   transition: background-color 0.2s;
+  min-height: 20px; /* Ensure a minimum height for the loader */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .custom-file-upload:hover {
@@ -51,7 +55,7 @@ input[type="file"] {
 .player-controls {
   display: flex;
   align-items: center;
-  flex-wrap: wrap; /* Permite controalelor sa treaca pe randul urmator */
+  flex-wrap: wrap;
   gap: 15px;
   background: white;
   padding: 15px;
@@ -66,7 +70,7 @@ button {
   cursor: pointer;
   font-weight: bold;
   font-size: 14px;
-  transition: transform 0.1s;
+  transition: transform 0.1s, background-color 0.2s, box-shadow 0.2s;
 }
 
 button:active {
@@ -88,8 +92,8 @@ button:active {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-grow: 1; /* Permite sa ocupe spatiul disponibil */
-  min-width: 250px; /* Asigura ca nu devin prea mici */
+  flex-grow: 1;
+  min-width: 250px;
 }
 
 .time-slider, .speed-slider {
@@ -102,19 +106,19 @@ button:active {
   font-family: monospace;
   font-size: 14px;
   color: #555;
-  white-space: nowrap; /* Impiedica textul sa se rupa in doua randuri */
+  white-space: nowrap;
 }
 
 .canvas-wrapper {
-  flex-grow: 1; /* Ocupa tot spatiul vertical ramas */
+  flex-grow: 1;
   width: 100%;
-  min-height: 300px; /* Inaltime minima pentru a nu disparea */
+  min-height: 300px;
   background-color: #ffffff;
   border: 2px solid #ddd;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
   overflow: hidden;
-  position: relative; /* Necesar pentru a pozitiona canvas-ul corect */
+  position: relative;
 }
 
 canvas {
@@ -123,7 +127,28 @@ canvas {
   height: 100%;
 }
 
-/* Media Query pentru ecrane mici (ex: telefoane mobile) */
+.error-message {
+  background-color: #e74c3c;
+  color: white;
+  padding: 10px 15px;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.loader {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #3498db;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 @media (max-width: 768px) {
   .animator-container {
     padding: 10px;
@@ -131,7 +156,7 @@ canvas {
 
   .player-controls {
     flex-direction: column;
-    align-items: stretch; /* Face elementele sa ocupe toata latimea */
+    align-items: stretch;
   }
 
   .timeline-wrapper, .speed-control {

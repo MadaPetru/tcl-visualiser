@@ -2,10 +2,15 @@
   <h2>NAM Network Player (Web)</h2>
 
   <div class="controls-section">
-    <label for="file-upload" class="custom-file-upload">
-      Upload <b>*.nam</b> File
+    <label for="file-upload" class="custom-file-upload" title="Upload a .nam trace file to begin the simulation">
+      <span *ngIf="!isLoading">Upload <b>*.nam</b> File</span>
+      <span *ngIf="isLoading" class="loader"></span>
     </label>
-    <input id="file-upload" type="file" accept=".nam" (change)="onFileSelected($event)" />
+    <input id="file-upload" type="file" accept=".nam" (change)="onFileSelected($event)" [disabled]="isLoading" />
+
+    <div *ngIf="errorMessage" class="error-message">
+      {{ errorMessage }}
+    </div>
 
     <div class="player-controls" *ngIf="maxSimulationTime > 0">
       <button class="btn-play" (click)="togglePlay()">
@@ -13,7 +18,7 @@
       </button>
       <button class="btn-reset" (click)="resetSim()">⏹ Reset</button>
 
-      <div class="timeline-wrapper">
+      <div class="timeline-wrapper" title="Scrub through the simulation timeline">
         <span class="time-label">{{ simulationTime | number:'1.2-2' }}s</span>
         <input
           type="range"
@@ -27,13 +32,13 @@
         <span class="time-label">{{ maxSimulationTime | number:'1.2-2' }}s</span>
       </div>
 
-      <div class="speed-control">
+      <div class="speed-control" title="Adjust the playback speed of the simulation">
         <span class="speed-label">Speed: {{ playbackSpeed }}x</span>
         <input
           type="range"
           class="speed-slider"
           min="0.1"
-          max="5"
+          max="1"
           step="0.1"
           [value]="playbackSpeed"
           (input)="onSpeedChange($event)"
