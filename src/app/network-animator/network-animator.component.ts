@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
+import { Component, ElementRef, ViewChild, AfterViewInit, HostListener, OnDestroy } from '@angular/core';
 
 interface Node {
   id: string;
@@ -23,7 +23,7 @@ interface Packet {
   templateUrl: './network-animator.component.html',
   styleUrls: ['./network-animator.component.css']
 })
-export class NetworkAnimatorComponent implements AfterViewInit {
+export class NetworkAnimatorComponent implements AfterViewInit, OnDestroy {
   @ViewChild('networkCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
 
   private ctx!: CanvasRenderingContext2D;
@@ -31,23 +31,46 @@ export class NetworkAnimatorComponent implements AfterViewInit {
   private links: Link[] = [];
   private packets: Packet[] = [];
   private animationFrameId: number = 0;
+  private trafficIntervalId: any = null;
+  private tclContent: string = '';
 
   ngAfterViewInit(): void {
     const canvas = this.canvasRef.nativeElement;
     this.ctx = canvas.getContext('2d')!;
-    this.resizeCanvas();
+    this.resizeAndRedraw();
   }
 
-  // Citeste fisierul .tcl incarcat de utilizator
+  ngOnDestroy(): void {
+    cancelAnimationFrame(this.animationFrameId);
+    if (this.trafficIntervalId) {
+      clearInterval(this.trafficIntervalId);
+    }
+  }
+
+  @HostListener('window:resize')
+  onResize(): void {
+    this.resizeAndRedraw();
+  }
+
   onFileSelected(event: any): void {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const content = e.target?.result as string;
-        this.parseTclAndDraw(content);
+        this.tclContent = e.target?.result as string;
+        this.parseTclAndDraw(this.tclContent);
       };
       reader.readAsText(file);
+    }
+  }
+
+  private resizeAndRedraw(): void {
+    this.resizeCanvas();
+    if (this.tclContent) {
+      this.parseTclAndDraw(this.tclContent);
+    } else {
+      // If there's no content, at least clear the canvas
+      this.ctx.clearRect(0, 0, this.canvasRef.nativeElement.width, this.canvasRef.nativeElement.height);
     }
   }
 
@@ -56,8 +79,10 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     this.links = [];
     this.packets = [];
     cancelAnimationFrame(this.animationFrameId);
+    if (this.trafficIntervalId) {
+      clearInterval(this.trafficIntervalId);
+    }
 
-    // 1. Cauta declaratiile de noduri (ex: set n0 [$ns node])
     const nodeRegex = /set\s+(n\d+)\s+\[\$ns\s+node\]/g;
     let match;
     const nodeIds: string[] = [];
@@ -65,10 +90,9 @@ export class NetworkAnimatorComponent implements AfterViewInit {
       nodeIds.push(match[1]);
     }
 
-    // Aseaza nodurile intr-un cerc pe canvas
     const centerX = this.canvasRef.nativeElement.width / 2;
     const centerY = this.canvasRef.nativeElement.height / 2;
-    const radius = Math.min(centerX, centerY) - 50;
+    const radius = Math.min(centerX, centerY) * 0.8; // Use 80% of available space
 
     nodeIds.forEach((id, index) => {
       const angle = (index / nodeIds.length) * 2 * Math.PI - Math.PI / 2;
@@ -79,24 +103,19 @@ export class NetworkAnimatorComponent implements AfterViewInit {
       });
     });
 
-    // 2. Cauta link-urile (ex: $ns duplex-link $n0 $n1 ...)
     const linkRegex = /\$ns\s+(?:duplex-link|simplex-link)\s+\$(n\d+)\s+\$(n\d+)/g;
     while ((match = linkRegex.exec(content)) !== null) {
       this.links.push({ from: match[1], to: match[2] });
     }
 
-    // Genereaza cateva pachete fictive pentru animatie
     this.generateMockTraffic();
-
-    // Porneste bucla de desenare
     this.animate();
   }
 
   private generateMockTraffic(): void {
     if (this.links.length === 0) return;
 
-    // Adaugam niste "pachete" vizuale pe primele link-uri gasite
-    setInterval(() => {
+    this.trafficIntervalId = setInterval(() => {
       const randomLink = this.links[Math.floor(Math.random() * this.links.length)];
       const fromNode = this.nodes.get(randomLink.from);
       const toNode = this.nodes.get(randomLink.to);
@@ -106,16 +125,15 @@ export class NetworkAnimatorComponent implements AfterViewInit {
           fromNode,
           toNode,
           progress: 0,
-          color: Math.random() > 0.5 ? '#ff4d4d' : '#4dff4d' // Rosu sau Verde
+          color: Math.random() > 0.5 ? '#ff4d4d' : '#4dff4d'
         });
       }
-    }, 500); // Apare un pachet nou la fiecare 500ms
+    }, 500);
   }
 
   private animate = (): void => {
     this.ctx.clearRect(0, 0, this.canvasRef.nativeElement.width, this.canvasRef.nativeElement.height);
 
-    // Deseneaza Link-urile
     this.ctx.lineWidth = 2;
     this.ctx.strokeStyle = '#888';
     this.links.forEach(link => {
@@ -129,13 +147,12 @@ export class NetworkAnimatorComponent implements AfterViewInit {
       }
     });
 
-    // Animeaza si deseneaza Pachetele
     for (let i = this.packets.length - 1; i >= 0; i--) {
       const p = this.packets[i];
-      p.progress += 0.01; // Viteza pachetului
+      p.progress += 0.01;
 
       if (p.progress >= 1) {
-        this.packets.splice(i, 1); // Sterge pachetul ajuns la destinatie
+        this.packets.splice(i, 1);
         continue;
       }
 
@@ -148,7 +165,6 @@ export class NetworkAnimatorComponent implements AfterViewInit {
       this.ctx.fill();
     }
 
-    // Deseneaza Nodurile deasupra
     this.nodes.forEach(node => {
       this.ctx.beginPath();
       this.ctx.arc(node.x, node.y, 20, 0, 2 * Math.PI);
@@ -169,7 +185,14 @@ export class NetworkAnimatorComponent implements AfterViewInit {
 
   private resizeCanvas(): void {
     const canvas = this.canvasRef.nativeElement;
-    canvas.width = canvas.parentElement?.clientWidth || 800;
-    canvas.height = 500;
+    const wrapper = canvas.parentElement;
+    if (wrapper) {
+      canvas.width = wrapper.clientWidth;
+      canvas.height = wrapper.clientWidth * (9 / 16); // Maintain a 16:9 aspect ratio
+    } else {
+      // Fallback for safety
+      canvas.width = 800;
+      canvas.height = 450;
+    }
   }
 }

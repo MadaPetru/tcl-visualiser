@@ -6,6 +6,8 @@
   padding: 20px;
   background-color: #f5f7fa;
   border-radius: 8px;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .upload-section {
@@ -44,4 +46,16 @@ input[type="file"] {
 
 canvas {
   display: block;
+  width: 100%;
+  height: auto;
+}
+
+@media (max-width: 600px) {
+  .animator-container {
+    padding: 10px;
+  }
+
+  .custom-file-upload {
+    padding: 8px 16px;
+  }
 }
