@@ -1,16 +1,30 @@
+:host {
+  display: block;
+  height: 100vh;
+  width: 100vw;
+}
+
 .animator-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  height: 100%;
   font-family: Arial, sans-serif;
   padding: 20px;
   background-color: #f5f7fa;
-  border-radius: 8px;
   box-sizing: border-box;
-  width: 100%;
 }
 
-.upload-section {
+h2 {
+  text-align: center;
+  color: #2c3e50;
+  margin-top: 0;
+}
+
+.controls-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
   margin-bottom: 20px;
 }
 
@@ -19,43 +33,112 @@ input[type="file"] {
 }
 
 .custom-file-upload {
+  align-self: flex-start;
   border: 1px solid #ccc;
-  display: inline-block;
   padding: 10px 20px;
   cursor: pointer;
-  background-color: #4a90e2;
+  background-color: #34495e;
   color: white;
   border-radius: 4px;
   font-weight: bold;
-  transition: background-color 0.3s;
+  transition: background-color 0.2s;
 }
 
 .custom-file-upload:hover {
-  background-color: #357abd;
+  background-color: #4a627a;
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap; /* Permite controalelor sa treaca pe randul urmator */
+  gap: 15px;
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+button {
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+  transition: transform 0.1s;
+}
+
+button:active {
+  transform: scale(0.95);
+}
+
+.btn-play {
+  background-color: #27ae60;
+  color: white;
+  min-width: 90px;
+}
+
+.btn-reset {
+  background-color: #c0392b;
+  color: white;
+}
+
+.timeline-wrapper, .speed-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-grow: 1; /* Permite sa ocupe spatiul disponibil */
+  min-width: 250px; /* Asigura ca nu devin prea mici */
+}
+
+.time-slider, .speed-slider {
+  flex-grow: 1;
+  cursor: pointer;
+  min-width: 100px;
+}
+
+.time-label, .speed-label {
+  font-family: monospace;
+  font-size: 14px;
+  color: #555;
+  white-space: nowrap; /* Impiedica textul sa se rupa in doua randuri */
 }
 
 .canvas-wrapper {
+  flex-grow: 1; /* Ocupa tot spatiul vertical ramas */
   width: 100%;
-  max-width: 800px;
+  min-height: 300px; /* Inaltime minima pentru a nu disparea */
   background-color: #ffffff;
   border: 2px solid #ddd;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
   overflow: hidden;
+  position: relative; /* Necesar pentru a pozitiona canvas-ul corect */
 }
 
 canvas {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
 }
 
-@media (max-width: 600px) {
+/* Media Query pentru ecrane mici (ex: telefoane mobile) */
+@media (max-width: 768px) {
   .animator-container {
     padding: 10px;
   }
 
-  .custom-file-upload {
-    padding: 8px 16px;
+  .player-controls {
+    flex-direction: column;
+    align-items: stretch; /* Face elementele sa ocupe toata latimea */
+  }
+
+  .timeline-wrapper, .speed-control {
+    width: 100%;
+  }
+
+  h2 {
+    font-size: 1.2rem;
   }
 }
