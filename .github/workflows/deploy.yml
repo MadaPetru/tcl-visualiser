@@ -23,7 +23,7 @@ jobs:
         run: npm run build -- --configuration production
 
       - name: Move robots.txt
-        run: mv dist/vizualizator-tcl/browser/assets/robots.txt dist/vizualizator-tcl/browser/robots.txt
+        run: mv dist/vizualizator-tcl/assets/robots.txt dist/vizualizator-tcl/robots.txt
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
