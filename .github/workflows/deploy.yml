@@ -36,4 +36,4 @@ jobs:
 
       - name: Sync to S3 bucket
         run: |
-          aws s3 sync dist/vizualizator-tcl/browser s3://${{ secrets.S3_BUCKET_NAME }} --delete
+          aws s3 sync dist/vizualizator-tcl s3://${{ secrets.S3_BUCKET_NAME }} --delete
