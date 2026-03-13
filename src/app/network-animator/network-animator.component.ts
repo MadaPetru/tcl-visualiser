@@ -20,6 +20,7 @@ interface LinkStateEvent {
 
 const LAST_FILE_STORAGE_KEY = 'nam_last_file_content';
 const SIMULATION_SPEED_ADJUSTMENT = 0.1;
+const LANE_OFFSET = 6; // Offset from the center of the link for directional traffic
 
 @Component({
   selector: 'app-network-animator',
@@ -54,7 +55,7 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     const canvas = this.canvasRef.nativeElement;
     this.ctx = canvas.getContext('2d')!;
     this.resizeCanvas();
-    this.loadFromLocalStorage(); // Load data after the view is initialized
+    this.loadFromLocalStorage();
     this.drawFrame();
   }
 
@@ -99,7 +100,6 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     const savedContent = localStorage.getItem(LAST_FILE_STORAGE_KEY);
     if (savedContent) {
       this.isLoading = true;
-      // Use a timeout to allow the UI to update with the loader
       setTimeout(() => {
         try {
           this.originalNamContent = savedContent;
@@ -111,7 +111,7 @@ export class NetworkAnimatorComponent implements AfterViewInit {
         } finally {
           this.isLoading = false;
         }
-      }, 10); // A small delay is enough
+      }, 10);
     }
   }
 
@@ -124,55 +124,55 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     let maxSize = -Infinity;
 
     for (const line of lines) {
-      if (line.startsWith('l -t *')) {
         const sMatch = line.match(/-s\s+(\d+)/);
         const dMatch = line.match(/-d\s+(\d+)/);
-        if (sMatch && dMatch) {
-          uniqueNodeIds.add(sMatch[1]);
-          uniqueNodeIds.add(dMatch[1]);
+        if (sMatch) uniqueNodeIds.add(sMatch[1]);
+        if (dMatch) uniqueNodeIds.add(dMatch[1]);
+    }
+
+    for (const line of lines) {
+      const type = line.charAt(0);
+      const tMatch = line.match(/-t\s+([\d.]+)/);
+      const sMatch = line.match(/-s\s+(\d+)/);
+      const dMatch = line.match(/-d\s+(\d+)/);
+      const iMatch = line.match(/-i\s+(\d+)/);
+
+      if (type === 'l') {
+        if (line.startsWith('l -t *') && sMatch && dMatch) {
           if (!this.links.find(l => (l.from === sMatch[1] && l.to === dMatch[1]) || (l.from === dMatch[1] && l.to === sMatch[1]))) {
             this.links.push({ from: sMatch[1], to: dMatch[1] });
           }
+        } else {
+          const stateMatch = line.match(/-S\s+(UP|DOWN)/);
+          if (tMatch && sMatch && dMatch && stateMatch) {
+            this.linkStates.push({ from: sMatch[1], to: dMatch[1], time: parseFloat(tMatch[1]), state: stateMatch[1] as 'UP' | 'DOWN' });
+          }
         }
-      } else if (line.startsWith('l -t ') && !line.startsWith('l -t *')) {
-        const tMatch = line.match(/-t\s+([\d.]+)/);
-        const sMatch = line.match(/-s\s+(\d+)/);
-        const dMatch = line.match(/-d\s+(\d+)/);
-        const stateMatch = line.match(/-S\s+(UP|DOWN)/);
-        if (tMatch && sMatch && dMatch && stateMatch) {
-          this.linkStates.push({ from: sMatch[1], to: dMatch[1], time: parseFloat(tMatch[1]), state: stateMatch[1] as 'UP' | 'DOWN' });
-        }
-      } else if (line.startsWith('h ')) {
-        const tMatch = line.match(/-t\s+([\d.]+)/);
-        const sMatch = line.match(/-s\s+(\d+)/);
-        const dMatch = line.match(/-d\s+(\d+)/);
-        const iMatch = line.match(/-i\s+(\d+)/);
+      } else if ((type === 'h' || type === '+') && tMatch && sMatch && dMatch && iMatch) {
+        const pId = iMatch[1];
+        const time = parseFloat(tMatch[1]);
         const cMatch = line.match(/-c\s+(\d+)/);
         const zMatch = line.match(/-z\s+(\d+)/);
-        if (tMatch && sMatch && dMatch && iMatch) {
-          const pId = iMatch[1];
-          const time = parseFloat(tMatch[1]);
-          const key = `${pId}_${sMatch[1]}_${dMatch[1]}`;
-          const size = zMatch ? parseInt(zMatch[1], 10) : 1000;
-          if (size < minSize) minSize = size;
-          if (size > maxSize) maxSize = size;
-          pendingPackets.set(key, { id: pId, from: sMatch[1], to: dMatch[1], startTime: time, color: cMatch ? this.getColorCode(cMatch[1]) : '#333', size: size });
-        }
-      } else if (line.startsWith('r ')) {
-        const tMatch = line.match(/-t\s+([\d.]+)/);
-        const sMatch = line.match(/-s\s+(\d+)/);
-        const dMatch = line.match(/-d\s+(\d+)/);
-        const iMatch = line.match(/-i\s+(\d+)/);
-        if (tMatch && sMatch && dMatch && iMatch) {
-          const pId = iMatch[1];
-          const key = `${pId}_${sMatch[1]}_${dMatch[1]}`;
-          const pending = pendingPackets.get(key);
-          if (pending && pending.startTime !== undefined) {
-            const endTime = parseFloat(tMatch[1]);
-            this.packetEvents.push({ id: pending.id!, from: pending.from!, to: pending.to!, startTime: pending.startTime, endTime: endTime, color: pending.color!, size: pending.size! });
-            pendingPackets.delete(key);
-            if (endTime > this.maxSimulationTime) this.maxSimulationTime = endTime;
-          }
+        const size = zMatch ? parseInt(zMatch[1], 10) : 1000;
+        if (size < minSize) minSize = size;
+        if (size > maxSize) maxSize = size;
+
+        pendingPackets.set(pId, {
+          id: pId,
+          from: sMatch[1],
+          to: dMatch[1],
+          startTime: time,
+          color: cMatch ? this.getColorCode(cMatch[1]) : '#333',
+          size: size
+        });
+      } else if (type === 'r' && tMatch && iMatch) {
+        const pId = iMatch[1];
+        const pending = pendingPackets.get(pId);
+        if (pending) {
+          const endTime = parseFloat(tMatch[1]);
+          this.packetEvents.push({ ...pending, endTime: endTime } as PacketEvent);
+          pendingPackets.delete(pId);
+          if (endTime > this.maxSimulationTime) this.maxSimulationTime = endTime;
         }
       }
     }
@@ -180,8 +180,8 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     this.minPacketSize = minSize;
     this.maxPacketSize = maxSize;
 
-    if (uniqueNodeIds.size === 0 && this.links.length === 0) {
-        throw new Error("No valid nodes or links found in the file.");
+    if (uniqueNodeIds.size === 0) {
+        throw new Error("No valid nodes found in the file.");
     }
 
     this.calculateLayout(Array.from(uniqueNodeIds).sort((a, b) => parseInt(a) - parseInt(b)));
@@ -264,14 +264,14 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     if (this.isPlaying) this.animationFrameId = requestAnimationFrame(this.gameLoop);
   }
 
-  private getPacketSize(size: number): number {
-    const minSide = 4;
-    const maxSide = 20;
+  private getPacketLength(size: number): number {
+    const minLength = 10;
+    const maxLength = 80;
     if (this.maxPacketSize === this.minPacketSize) {
-      return (minSide + maxSide) / 2;
+      return (minLength + maxLength) / 2;
     }
     const sizeRatio = (size - this.minPacketSize) / (this.maxPacketSize - this.minPacketSize);
-    return minSide + sizeRatio * (maxSide - minSide);
+    return minLength + sizeRatio * (maxLength - minLength);
   }
 
   private drawFrame(): void {
@@ -279,58 +279,97 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     const canvas = this.canvasRef.nativeElement;
     this.ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    this.ctx.lineWidth = 3;
+    // 1. Draw links and their states
+    this.ctx.lineWidth = 2;
     this.links.forEach(link => {
-      let isDown = false;
-      const stateChanges = this.linkStates.filter(s => ((s.from === link.from && s.to === link.to) || (s.from === link.to && s.to === link.from)) && s.time <= this.simulationTime).sort((a, b) => a.time - b.time);
-      if (stateChanges.length > 0) {
-        if (stateChanges[stateChanges.length - 1].state === 'DOWN') isDown = true;
-      }
       const fromNode = this.nodes.find(n => n.id === link.from);
       const toNode = this.nodes.find(n => n.id === link.to);
       if (fromNode && toNode) {
+        const stateChanges = this.linkStates
+          .filter(s => ((s.from === link.from && s.to === link.to) || (s.from === link.to && s.to === link.from)) && s.time <= this.simulationTime)
+          .sort((a, b) => a.time - b.time);
+
+        const isDown = stateChanges.length > 0 && stateChanges[stateChanges.length - 1].state === 'DOWN';
+
         this.ctx.beginPath();
         this.ctx.moveTo(fromNode.x, fromNode.y);
         this.ctx.lineTo(toNode.x, toNode.y);
-        this.ctx.strokeStyle = isDown ? '#ffb3b3' : '#cccccc';
+        this.ctx.strokeStyle = isDown ? '#e74c3c' : '#cccccc';
         this.ctx.setLineDash(isDown ? [5, 10] : []);
         this.ctx.stroke();
       }
     });
-    this.ctx.setLineDash([]);
+    this.ctx.setLineDash([]); // Reset line dash
 
-    this.packetEvents.filter(p => this.simulationTime >= p.startTime && this.simulationTime <= p.endTime).forEach(p => {
-      const fromNode = this.nodes.find(n => n.id === p.from);
-      const toNode = this.nodes.find(n => n.id === p.to);
-      if (fromNode && toNode) {
-        const duration = p.endTime - p.startTime;
-        const progress = duration > 0 ? (this.simulationTime - p.startTime) / duration : 1;
-        const currentX = fromNode.x + (toNode.x - fromNode.x) * progress;
-        const currentY = fromNode.y + (toNode.y - fromNode.y) * progress;
+    // 2. Group active packets by directional link
+    const activePackets = this.packetEvents.filter(p => this.simulationTime >= p.startTime && this.simulationTime <= p.endTime + (p.endTime - p.startTime));
+    const directionalLinkUsage = new Map<string, PacketEvent[]>();
 
-        const side = this.getPacketSize(p.size);
-
-        this.ctx.fillStyle = p.color;
-        this.ctx.fillRect(currentX - side / 2, currentY - side / 2, side, side);
-        this.ctx.strokeStyle = '#000';
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(currentX - side / 2, currentY - side / 2, side, side);
+    activePackets.forEach(p => {
+      const linkKey = `${p.from}-${p.to}`;
+      if (!directionalLinkUsage.has(linkKey)) {
+        directionalLinkUsage.set(linkKey, []);
       }
+      directionalLinkUsage.get(linkKey)!.push(p);
     });
 
+    // 3. Draw packets in their lanes
+    this.ctx.lineCap = 'round';
+    directionalLinkUsage.forEach((packets, linkKey) => {
+      packets.forEach((p, index) => {
+        const fromNode = this.nodes.find(n => n.id === p.from);
+        const toNode = this.nodes.find(n => n.id === p.to);
+        if (fromNode && toNode) {
+          const duration = p.endTime - p.startTime;
+          if (duration <= 0) return;
+
+          const linkVector = { x: toNode.x - fromNode.x, y: toNode.y - fromNode.y };
+          const linkLength = Math.sqrt(linkVector.x ** 2 + linkVector.y ** 2);
+          if (linkLength === 0) return;
+
+          const perpendicular = { x: -linkVector.y / linkLength, y: linkVector.x / linkLength };
+
+          // All packets on the same directed link share the same lane offset
+          const totalOffset = LANE_OFFSET;
+          const offsetX = perpendicular.x * totalOffset;
+          const offsetY = perpendicular.y * totalOffset;
+
+          const packetVisualLength = this.getPacketLength(p.size);
+          const headProgress = (this.simulationTime - p.startTime) / duration;
+          const tailProgress = headProgress - (packetVisualLength / linkLength);
+
+          const headX = fromNode.x + linkVector.x * Math.min(1, headProgress) + offsetX;
+          const headY = fromNode.y + linkVector.y * Math.min(1, headProgress) + offsetY;
+
+          const tailX = fromNode.x + linkVector.x * Math.max(0, tailProgress) + offsetX;
+          const tailY = fromNode.y + linkVector.y * Math.max(0, tailProgress) + offsetY;
+
+          if (headProgress > 0 && tailProgress < 1) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(tailX, tailY);
+            this.ctx.lineTo(headX, headY);
+            this.ctx.strokeStyle = p.color;
+            this.ctx.lineWidth = 5; // Thinner, cleaner line
+            this.ctx.stroke();
+          }
+        }
+      });
+    });
+
+    // 4. Draw nodes on top of everything
     this.nodes.forEach(node => {
       this.ctx.beginPath();
       this.ctx.arc(node.x, node.y, 20, 0, 2 * Math.PI);
       this.ctx.fillStyle = '#4a90e2';
       this.ctx.fill();
       this.ctx.strokeStyle = '#2a6099';
-      this.ctx.lineWidth = 2;
+      this.ctx.lineWidth = 3;
       this.ctx.stroke();
       this.ctx.fillStyle = '#fff';
-      this.ctx.font = '14px Arial';
+      this.ctx.font = 'bold 14px Arial';
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
-      this.ctx.fillText('n' + node.id, node.x, node.y);
+      this.ctx.fillText(node.id, node.x, node.y);
     });
   }
 
