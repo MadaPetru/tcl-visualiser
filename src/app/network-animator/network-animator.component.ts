@@ -9,6 +9,7 @@ interface PacketEvent {
   startTime: number;
   endTime: number;
   color: string;
+  size: number;
 }
 interface LinkStateEvent {
   from: string;
@@ -18,6 +19,7 @@ interface LinkStateEvent {
 }
 
 const LAST_FILE_STORAGE_KEY = 'nam_last_file_content';
+const SIMULATION_SPEED_ADJUSTMENT = 0.1;
 
 @Component({
   selector: 'app-network-animator',
@@ -33,6 +35,8 @@ export class NetworkAnimatorComponent implements AfterViewInit {
   private packetEvents: PacketEvent[] = [];
   private linkStates: LinkStateEvent[] = [];
   private originalNamContent: string | null = null;
+  private minPacketSize = Infinity;
+  private maxPacketSize = -Infinity;
 
   // UI State
   public isLoading = false;
@@ -116,6 +120,8 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     const lines = content.split('\n');
     const uniqueNodeIds = new Set<string>();
     const pendingPackets = new Map<string, Partial<PacketEvent>>();
+    let minSize = Infinity;
+    let maxSize = -Infinity;
 
     for (const line of lines) {
       if (line.startsWith('l -t *')) {
@@ -142,11 +148,15 @@ export class NetworkAnimatorComponent implements AfterViewInit {
         const dMatch = line.match(/-d\s+(\d+)/);
         const iMatch = line.match(/-i\s+(\d+)/);
         const cMatch = line.match(/-c\s+(\d+)/);
+        const zMatch = line.match(/-z\s+(\d+)/);
         if (tMatch && sMatch && dMatch && iMatch) {
           const pId = iMatch[1];
           const time = parseFloat(tMatch[1]);
           const key = `${pId}_${sMatch[1]}_${dMatch[1]}`;
-          pendingPackets.set(key, { id: pId, from: sMatch[1], to: dMatch[1], startTime: time, color: cMatch ? this.getColorCode(cMatch[1]) : '#333' });
+          const size = zMatch ? parseInt(zMatch[1], 10) : 1000;
+          if (size < minSize) minSize = size;
+          if (size > maxSize) maxSize = size;
+          pendingPackets.set(key, { id: pId, from: sMatch[1], to: dMatch[1], startTime: time, color: cMatch ? this.getColorCode(cMatch[1]) : '#333', size: size });
         }
       } else if (line.startsWith('r ')) {
         const tMatch = line.match(/-t\s+([\d.]+)/);
@@ -159,13 +169,16 @@ export class NetworkAnimatorComponent implements AfterViewInit {
           const pending = pendingPackets.get(key);
           if (pending && pending.startTime !== undefined) {
             const endTime = parseFloat(tMatch[1]);
-            this.packetEvents.push({ id: pending.id!, from: pending.from!, to: pending.to!, startTime: pending.startTime, endTime: endTime, color: pending.color! });
+            this.packetEvents.push({ id: pending.id!, from: pending.from!, to: pending.to!, startTime: pending.startTime, endTime: endTime, color: pending.color!, size: pending.size! });
             pendingPackets.delete(key);
             if (endTime > this.maxSimulationTime) this.maxSimulationTime = endTime;
           }
         }
       }
     }
+
+    this.minPacketSize = minSize;
+    this.maxPacketSize = maxSize;
 
     if (uniqueNodeIds.size === 0 && this.links.length === 0) {
         throw new Error("No valid nodes or links found in the file.");
@@ -183,6 +196,8 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     this.simulationTime = 0;
     this.maxSimulationTime = 0;
     this.isPlaying = false;
+    this.minPacketSize = Infinity;
+    this.maxPacketSize = -Infinity;
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
     }
@@ -240,13 +255,23 @@ export class NetworkAnimatorComponent implements AfterViewInit {
     if (!this.isPlaying) return;
     const deltaTime = (currentTime - this.lastFrameTime) / 1000;
     this.lastFrameTime = currentTime;
-    this.simulationTime += deltaTime * this.playbackSpeed;
+    this.simulationTime += deltaTime * this.playbackSpeed * SIMULATION_SPEED_ADJUSTMENT;
     if (this.simulationTime >= this.maxSimulationTime) {
       this.simulationTime = this.maxSimulationTime;
       this.isPlaying = false;
     }
     this.drawFrame();
     if (this.isPlaying) this.animationFrameId = requestAnimationFrame(this.gameLoop);
+  }
+
+  private getPacketSize(size: number): number {
+    const minSide = 4;
+    const maxSide = 20;
+    if (this.maxPacketSize === this.minPacketSize) {
+      return (minSide + maxSide) / 2;
+    }
+    const sizeRatio = (size - this.minPacketSize) / (this.maxPacketSize - this.minPacketSize);
+    return minSide + sizeRatio * (maxSide - minSide);
   }
 
   private drawFrame(): void {
@@ -282,13 +307,14 @@ export class NetworkAnimatorComponent implements AfterViewInit {
         const progress = duration > 0 ? (this.simulationTime - p.startTime) / duration : 1;
         const currentX = fromNode.x + (toNode.x - fromNode.x) * progress;
         const currentY = fromNode.y + (toNode.y - fromNode.y) * progress;
-        this.ctx.beginPath();
-        this.ctx.arc(currentX, currentY, 6, 0, 2 * Math.PI);
+
+        const side = this.getPacketSize(p.size);
+
         this.ctx.fillStyle = p.color;
-        this.ctx.fill();
+        this.ctx.fillRect(currentX - side / 2, currentY - side / 2, side, side);
         this.ctx.strokeStyle = '#000';
         this.ctx.lineWidth = 1;
-        this.ctx.stroke();
+        this.ctx.strokeRect(currentX - side / 2, currentY - side / 2, side, side);
       }
     });
 
