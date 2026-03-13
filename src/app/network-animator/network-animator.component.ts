@@ -46,7 +46,7 @@ export class NetworkAnimatorComponent implements AfterViewInit {
   public isPlaying = false;
   public simulationTime = 0;
   public maxSimulationTime = 0;
-  public playbackSpeed = 1.0;
+  public playbackSpeed = 0.1;
   private lastFrameTime = 0;
   private animationFrameId: number = 0;
 
